@@ -1,0 +1,9 @@
+fastapi
+uvicorn[standard]
+python-dotenv
+sqlalchemy
+pwdlib[argon2]
+PyJWT
+pydantic[email]
+# Phase 5.8 -- AI Repair Assistance (Google Gemini)
+google-genai
