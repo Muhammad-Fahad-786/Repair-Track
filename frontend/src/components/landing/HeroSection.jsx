@@ -96,7 +96,7 @@ function RepairStatusCard() {
       <div className="mt-4 pt-3.5 border-t border-surface-100 dark:border-slate-800 flex items-center justify-between">
         <div>
           <span className="text-2xs font-semibold text-slate-400 dark:text-slate-500 uppercase tracking-wider block">Estimated Cost</span>
-          <span className="text-base font-bold text-slate-900 dark:text-white font-mono">Rs. 2,500</span>
+          <span className="text-base font-bold text-slate-900 dark:text-white font-mono">₹2,500</span>
         </div>
         <span className="text-2xs font-semibold text-emerald-700 dark:text-emerald-300 bg-emerald-50 dark:bg-emerald-950/60 border border-emerald-200 dark:border-emerald-800 px-2.5 py-1 rounded-full">
           Approved by Customer

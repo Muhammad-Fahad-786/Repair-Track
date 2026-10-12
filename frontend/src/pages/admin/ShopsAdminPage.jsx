@@ -16,6 +16,7 @@ import Badge from '../../components/ui/Badge';
 import Button from '../../components/ui/Button';
 import Input from '../../components/ui/Input';
 import { getAdminShops } from '../../services/adminService';
+import { ROUTES } from '../../constants';
 
 export default function ShopsAdminPage() {
   const [shops, setShops] = useState([]);
@@ -273,11 +274,11 @@ export default function ShopsAdminPage() {
                         <div className="flex items-center justify-end gap-1.5">
                           <Button
                             size="xs"
-                            variant="ghost"
-                            onClick={() => setSelectedShop(shop)}
+                            as={Link}
+                            to={ROUTES.ADMIN_SHOP_DETAIL(shop.id)}
                             leftIcon={<Eye size={13} />}
                           >
-                            Details
+                            View Shop
                           </Button>
 
                           <Button
@@ -378,6 +379,13 @@ export default function ShopsAdminPage() {
               </Link>
 
               <div className="flex items-center gap-2">
+                <Button
+                  size="sm"
+                  as={Link}
+                  to={ROUTES.ADMIN_SHOP_DETAIL(selectedShop.id)}
+                >
+                  View Shop
+                </Button>
                 <Button size="sm" variant="ghost" onClick={() => setSelectedShop(null)}>
                   Close
                 </Button>

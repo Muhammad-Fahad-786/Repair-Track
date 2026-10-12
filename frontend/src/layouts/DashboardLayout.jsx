@@ -17,13 +17,9 @@ import ThemeToggle from '../components/common/ThemeToggle';
 
 // ─── Sidebar link definitions per role (path-based) ──────────
 const ADMIN_LINKS = [
-  { label: 'Overview',        href: ROUTES.ADMIN,               icon: LayoutDashboard },
-  { label: 'Shop Requests',   href: ROUTES.ADMIN_SHOP_REQUESTS, icon: FileText        },
-  { label: 'Shops',           href: ROUTES.ADMIN_SHOPS,         icon: Store           },
-  { label: 'Shop Owners',     href: ROUTES.ADMIN_SHOP_OWNERS,   icon: Users           },
-  { label: 'Customers',       href: ROUTES.ADMIN_CUSTOMERS,     icon: User            },
-  { label: 'Repairs',         href: ROUTES.ADMIN_REPAIRS,       icon: Wrench          },
-  { label: 'Pickup Requests', href: ROUTES.ADMIN_PICKUPS,       icon: Package         },
+  { label: 'Dashboard',     href: ROUTES.ADMIN,               icon: LayoutDashboard },
+  { label: 'Shop Requests', href: ROUTES.ADMIN_SHOP_REQUESTS, icon: FileText        },
+  { label: 'Shops',         href: ROUTES.ADMIN_SHOPS,         icon: Store           },
 ];
 
 const SHOP_OWNER_LINKS = [

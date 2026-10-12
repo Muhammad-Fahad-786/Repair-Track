@@ -1,4 +1,4 @@
-﻿// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 // RepairTrack â€” Real Repair Management & Tracking Service (Phase 5.8)
 // Real integration with FastAPI endpoints:
 //   Shop Owner:
@@ -67,7 +67,7 @@ export function adaptRepair(raw) {
   const fullDeviceName = brandModel ? `${raw.device_type} (${brandModel})` : raw.device_type;
 
   const costNum = raw.estimated_cost !== null && raw.estimated_cost !== undefined ? Number(raw.estimated_cost) : null;
-  const costFormatted = costNum !== null && !isNaN(costNum) ? `$${costNum.toFixed(2)}` : 'Pending Estimate';
+  const costFormatted = costNum !== null && !isNaN(costNum) ? `₹${costNum.toLocaleString('en-IN')}` : 'Pending Estimate';
 
   const history = Array.isArray(raw.history)
     ? raw.history.map(adaptRepairHistory).sort((a, b) => new Date(a.createdAt) - new Date(b.createdAt))
@@ -147,6 +147,21 @@ export async function getShopOwnerRepairById(repairId) {
   if (!repairId) throw new Error('Repair ID is required.');
   const response = await api.get(`/shop-owner/repairs/${encodeURIComponent(repairId)}`);
   return adaptRepair(response.data);
+}
+
+/**
+ * Look up an existing repair associated with a specific pickup request ID.
+ * Returns the matching repair object or null if none exists.
+ *
+ * @param {number|string} pickupId
+ * @returns {Promise<Object|null>} Normalized repair object or null
+ */
+export async function getRepairByPickupId(pickupId) {
+  if (!pickupId) return null;
+  const targetId = parseInt(pickupId, 10);
+  if (isNaN(targetId) || targetId <= 0) return null;
+  const allRepairs = await getShopOwnerRepairs();
+  return allRepairs.find((r) => Number(r.pickupRequestId) === targetId) || null;
 }
 
 /**
@@ -268,9 +283,15 @@ export async function analyzeRepairProblem(problemDescription) {
     throw new Error('Problem description must not exceed 2000 characters.');
   }
 
-  const response = await api.post('/shop-owner/repairs/analyze', {
-    problem_description: trimmed,
-  });
+  const response = await api.post(
+    '/shop-owner/repairs/analyze',
+    {
+      problem_description: trimmed,
+    },
+    {
+      timeout: 25000, // 25s timeout comfortably higher than backend 12s controlled limit
+    }
+  );
   return response.data;
 }
 
@@ -341,6 +362,7 @@ export default {
   adaptRepairHistory,
   getShopOwnerRepairs,
   getShopOwnerRepairById,
+  getRepairByPickupId,
   createRepair,
   updateRepairStatus,
   addRepairHistory,

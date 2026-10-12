@@ -92,7 +92,7 @@ def run_tests():
         "device_brand": "Apple",
         "device_model": "iPhone 13 Pro",
         "problem_description": "Broken OLED display",
-        "pickup_address": "456 Elm St, Karachi",
+        "pickup_address": "456 Connaught Place, Delhi",
         "preferred_date": "2026-10-15",
         "preferred_time": "14:30:00",
     }, token=bob_token)
@@ -109,7 +109,7 @@ def run_tests():
         "device_brand": "Dell",
         "device_model": "XPS 15",
         "problem_description": "Water spill",
-        "pickup_address": "789 Pine St, Karachi",
+        "pickup_address": "789 Sector 18, Noida",
     }, token=bob_token)
     assert_test(status == 201 and pickup2.get("status") == "PENDING", "E2. Customer creates second pickup")
     p2_id = pickup2["id"]
@@ -146,7 +146,7 @@ def run_tests():
         # Check if David already has an application
         _, my_apps = api_request("GET", "/shop-applications/my", token=david_token)
         if not my_apps:
-            _, david_app = api_request("POST", "/shop-applications/", {"shop_name": "David Quick Fix", "address": "101 Market St", "city": "Karachi"}, token=david_token)
+            _, david_app = api_request("POST", "/shop-applications/", {"shop_name": "David Quick Fix", "address": "101 Market St", "city": "Noida"}, token=david_token)
             app_id = david_app["id"]
         else:
             app_id = my_apps[0]["id"]

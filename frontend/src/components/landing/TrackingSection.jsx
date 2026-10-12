@@ -78,7 +78,7 @@ function TrackingCard() {
         <div className="flex items-center justify-between pt-3.5 border-t border-surface-100 dark:border-slate-800">
           <div>
             <p className="text-2xs font-semibold text-slate-400 dark:text-slate-500 uppercase tracking-wider">Estimated Cost</p>
-            <p className="text-base font-bold text-slate-900 dark:text-slate-100 font-mono">Rs. 2,500</p>
+            <p className="text-base font-bold text-slate-900 dark:text-slate-100 font-mono">₹2,500</p>
           </div>
           <span className="text-2xs font-bold text-amber-700 dark:text-amber-400 bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-800/50 px-2.5 py-1 rounded-full">
             Cost Approved ✓

@@ -101,7 +101,7 @@ export default function AdminLoginPage() {
           label="Administrator Email"
           name="email"
           type="email"
-          placeholder="admin@repairtrack.pk"
+          placeholder="admin@repairtrack.com"
           value={form.email}
           onChange={handleChange}
           error={errors.email}

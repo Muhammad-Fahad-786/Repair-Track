@@ -14,12 +14,12 @@ import { useSearchParams, useNavigate } from 'react-router-dom';
 import {
   Package, Check, X, MapPin, Calendar, Phone, Mail,
   Clock, AlertCircle, RefreshCw, ChevronRight, Store,
-  CheckCircle2, Search, Truck, ShieldAlert, Wrench,
+  CheckCircle2, Search, Truck, ShieldAlert, Wrench, ExternalLink,
 } from 'lucide-react';
 import Badge from '../../components/ui/Badge';
 import Button from '../../components/ui/Button';
 import { PageLoader } from '../../components/ui/Spinner';
-import { PICKUP_STATUS, PICKUP_STATUS_LABELS } from '../../constants';
+import { PICKUP_STATUS, PICKUP_STATUS_LABELS, REPAIR_STATUS_LABELS, ROUTES } from '../../constants';
 import {
   getShopOwnerPickups,
   getShopOwnerPickupById,
@@ -27,7 +27,11 @@ import {
   rejectPickup,
   updatePickupStatus,
 } from '../../services/pickupService';
-import { createRepair } from '../../services/repairService';
+import {
+  createRepair,
+  getShopOwnerRepairs,
+  getRepairByPickupId,
+} from '../../services/repairService';
 
 const PICKUP_BADGE = {
   PENDING:   'warning',
@@ -36,6 +40,15 @@ const PICKUP_BADGE = {
   SCHEDULED: 'info',
   PICKED_UP: 'primary',
   RECEIVED:  'success',
+};
+
+const REPAIR_BADGE = {
+  RECEIVED:   'info',
+  DIAGNOSING: 'warning',
+  REPAIRING:  'primary',
+  READY:      'success',
+  COMPLETED:  'success',
+  CANCELLED:  'danger',
 };
 
 const STATUS_DESCRIPTIONS = {
@@ -133,7 +146,7 @@ function RejectPickupModal({ pickup, isOpen, onClose, onConfirm, loading }) {
 }
 
 // ─── Create Repair Modal Component ────────────────────────────
-function CreateRepairModal({ pickup, isOpen, onClose, onSuccess }) {
+function CreateRepairModal({ pickup, existingRepair, isOpen, onClose, onSuccess, onViewRepair }) {
   const [estimatedCost, setEstimatedCost] = useState('');
   const [problemDescription, setProblemDescription] = useState('');
   const [loading, setLoading] = useState(false);
@@ -178,7 +191,7 @@ function CreateRepairModal({ pickup, isOpen, onClose, onSuccess }) {
           <div>
             <h3 className="text-base font-bold text-slate-900 dark:text-white flex items-center gap-1.5">
               <Wrench size={16} className="text-primary-600 dark:text-primary-400" />
-              Create Repair Job
+              {existingRepair ? 'Repair Record Exists' : 'Create Repair Job'}
             </h3>
             <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
               From Received Pickup {pickup.displayId || `#PICK-${pickup.id}`}
@@ -194,81 +207,133 @@ function CreateRepairModal({ pickup, isOpen, onClose, onSuccess }) {
           </button>
         </div>
 
-        {error && (
-          <div className="p-3 rounded-xl bg-danger-50 dark:bg-danger-950/40 border border-danger-200 dark:border-danger-900/60 text-xs text-danger-700 dark:text-danger-300">
-            {error}
-          </div>
-        )}
+        {existingRepair ? (
+          <div className="space-y-4 py-1">
+            <div className="p-4 rounded-xl bg-primary-50/70 dark:bg-primary-950/40 border border-primary-200 dark:border-primary-900/60 space-y-3">
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-bold text-primary-800 dark:text-primary-300 flex items-center gap-1.5">
+                  <CheckCircle2 size={16} className="text-emerald-500" />
+                  Repair Already Created
+                </span>
+                <Badge variant={REPAIR_BADGE[existingRepair.status] || 'default'} size="sm">
+                  {REPAIR_STATUS_LABELS[existingRepair.status] || existingRepair.status}
+                </Badge>
+              </div>
+              <p className="text-xs text-slate-600 dark:text-slate-300 leading-relaxed">
+                A repair record already exists for pickup request <strong className="font-mono text-slate-900 dark:text-white">{pickup.displayId || `#PICK-${pickup.id}`}</strong>.
+              </p>
+              <div className="pt-2 border-t border-primary-200/60 dark:border-primary-900/40 space-y-1.5 text-xs">
+                <div className="flex items-center justify-between">
+                  <span className="text-slate-500 dark:text-slate-400">Repair ID:</span>
+                  <span className="font-mono font-bold text-slate-900 dark:text-white">{existingRepair.repairId}</span>
+                </div>
+                <div className="flex items-center justify-between">
+                  <span className="text-slate-500 dark:text-slate-400">Current Status:</span>
+                  <span className="font-semibold text-slate-800 dark:text-slate-200">
+                    {REPAIR_STATUS_LABELS[existingRepair.status] || existingRepair.status}
+                  </span>
+                </div>
+              </div>
+            </div>
 
-        <form onSubmit={handleSubmit} className="space-y-3.5">
-          <div className="p-3 rounded-xl bg-surface-50 dark:bg-slate-800/50 border border-surface-200/60 dark:border-slate-800 text-xs space-y-1">
-            <p className="font-semibold text-slate-900 dark:text-white">
-              {pickup.fullDeviceName || pickup.device}
-            </p>
-            <p className="text-slate-500 dark:text-slate-400 text-2xs">
-              Customer: <span className="text-slate-700 dark:text-slate-300 font-medium">{pickup.customerName || 'Customer'}</span>
-            </p>
-          </div>
-
-          <div>
-            <label className="block text-2xs font-semibold text-slate-600 dark:text-slate-400 uppercase mb-1">
-              Initial Estimated Cost ($ USD) <span className="text-slate-400 lowercase font-normal">(optional)</span>
-            </label>
-            <div className="relative">
-              <span className="absolute left-3 top-1/2 -translate-y-1/2 text-xs font-semibold text-slate-400">$</span>
-              <input
-                type="number"
-                step="0.01"
-                min="0"
-                value={estimatedCost}
-                onChange={(e) => setEstimatedCost(e.target.value)}
-                placeholder="e.g. 150.00"
-                disabled={loading}
-                className="w-full text-xs rounded-xl border border-surface-200 dark:border-slate-700 bg-surface-50 dark:bg-slate-800 pl-7 pr-3 py-2 text-slate-900 dark:text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-primary-500"
-              />
+            <div className="flex items-center justify-end gap-2 pt-2 border-t border-surface-100 dark:border-slate-800">
+              <Button size="sm" variant="outline" onClick={onClose}>
+                Close
+              </Button>
+              <Button
+                size="sm"
+                variant="primary"
+                leftIcon={<Wrench size={13} />}
+                onClick={() => {
+                  onClose();
+                  if (onViewRepair) {
+                    onViewRepair(existingRepair.repairId);
+                  }
+                }}
+              >
+                View Repair
+              </Button>
             </div>
           </div>
+        ) : (
+          <>
+            {error && (
+              <div className="p-3 rounded-xl bg-danger-50 dark:bg-danger-950/40 border border-danger-200 dark:border-danger-900/60 text-xs text-danger-700 dark:text-danger-300">
+                {error}
+              </div>
+            )}
 
-          <div>
-            <label className="block text-2xs font-semibold text-slate-600 dark:text-slate-400 uppercase mb-1">
-              Diagnostic Notes / Problem Description
-            </label>
-            <textarea
-              value={problemDescription}
-              onChange={(e) => setProblemDescription(e.target.value)}
-              disabled={loading}
-              rows={3}
-              maxLength={2000}
-              placeholder="Initial diagnostic findings or customer problem summary..."
-              className="w-full text-xs rounded-xl border border-surface-200 dark:border-slate-700 bg-surface-50 dark:bg-slate-800 p-2.5 text-slate-900 dark:text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-primary-500"
-            />
-          </div>
+            <form onSubmit={handleSubmit} className="space-y-3.5">
+              <div className="p-3 rounded-xl bg-surface-50 dark:bg-slate-800/50 border border-surface-200/60 dark:border-slate-800 text-xs space-y-1">
+                <p className="font-semibold text-slate-900 dark:text-white">
+                  {pickup.fullDeviceName || pickup.device}
+                </p>
+                <p className="text-slate-500 dark:text-slate-400 text-2xs">
+                  Customer: <span className="text-slate-700 dark:text-slate-300 font-medium">{pickup.customerName || 'Customer'}</span>
+                </p>
+              </div>
 
-          <p className="text-2xs text-slate-400 dark:text-slate-500">
-            A unique Repair ID (e.g. RT-SH001-X7K92) will be automatically generated by the server.
-          </p>
+              <div>
+                <label className="block text-2xs font-semibold text-slate-600 dark:text-slate-400 uppercase mb-1">
+                  Initial Estimated Cost (₹ INR) <span className="text-slate-400 lowercase font-normal">(optional)</span>
+                </label>
+                <div className="relative">
+                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-xs font-semibold text-slate-400">₹</span>
+                  <input
+                    type="number"
+                    step="1"
+                    min="0"
+                    value={estimatedCost}
+                    onChange={(e) => setEstimatedCost(e.target.value)}
+                    placeholder="e.g. 1500"
+                    disabled={loading}
+                    className="w-full text-xs rounded-xl border border-surface-200 dark:border-slate-700 bg-surface-50 dark:bg-slate-800 pl-7 pr-3 py-2 text-slate-900 dark:text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-primary-500"
+                  />
+                </div>
+              </div>
 
-          <div className="flex items-center justify-end gap-2 pt-3 border-t border-surface-100 dark:border-slate-800">
-            <Button
-              type="button"
-              size="sm"
-              variant="outline"
-              onClick={onClose}
-              disabled={loading}
-            >
-              Cancel
-            </Button>
-            <Button
-              type="submit"
-              size="sm"
-              variant="primary"
-              disabled={loading}
-              leftIcon={loading ? <RefreshCw size={13} className="animate-spin" /> : <Wrench size={13} />}
-            >
-              {loading ? 'Creating Repair...' : 'Create Repair Job'}
-            </Button>
-          </div>
-        </form>
+              <div>
+                <label className="block text-2xs font-semibold text-slate-600 dark:text-slate-400 uppercase mb-1">
+                  Diagnostic Notes / Problem Description
+                </label>
+                <textarea
+                  value={problemDescription}
+                  onChange={(e) => setProblemDescription(e.target.value)}
+                  disabled={loading}
+                  rows={3}
+                  maxLength={2000}
+                  placeholder="Initial diagnostic findings or customer problem summary..."
+                  className="w-full text-xs rounded-xl border border-surface-200 dark:border-slate-700 bg-surface-50 dark:bg-slate-800 p-2.5 text-slate-900 dark:text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-primary-500"
+                />
+              </div>
+
+              <p className="text-2xs text-slate-400 dark:text-slate-500">
+                A unique Repair ID (e.g. RT-2026-DEL-001) will be automatically generated by the server.
+              </p>
+
+              <div className="flex items-center justify-end gap-2 pt-3 border-t border-surface-100 dark:border-slate-800">
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="outline"
+                  onClick={onClose}
+                  disabled={loading}
+                >
+                  Cancel
+                </Button>
+                <Button
+                  type="submit"
+                  size="sm"
+                  variant="primary"
+                  disabled={loading}
+                  leftIcon={loading ? <RefreshCw size={13} className="animate-spin" /> : <Wrench size={13} />}
+                >
+                  {loading ? 'Creating Repair...' : 'Create Repair Job'}
+                </Button>
+              </div>
+            </form>
+          </>
+        )}
       </div>
     </div>
   );
@@ -283,10 +348,17 @@ function ShopOwnerPickupDetailModal({
   onUpdateStatus,
   onOpenCreateRepair,
   actionLoading,
+  associatedRepair,
+  onViewRepair,
 }) {
+  const navigate = useNavigate();
   const [pickup, setPickup] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+
+  const [repair, setRepair] = useState(associatedRepair || null);
+  const [checkingRepair, setCheckingRepair] = useState(false);
+  const [repairCheckError, setRepairCheckError] = useState(null);
 
   const fetchDetail = useCallback(async () => {
     if (!pickupId) return;
@@ -311,6 +383,46 @@ function ShopOwnerPickupDetailModal({
   useEffect(() => {
     fetchDetail();
   }, [fetchDetail]);
+
+  useEffect(() => {
+    let isMounted = true;
+    if (pickup && pickup.status === 'RECEIVED') {
+      if (associatedRepair !== undefined && associatedRepair !== null) {
+        setRepair(associatedRepair);
+        setCheckingRepair(false);
+        setRepairCheckError(null);
+      } else {
+        setCheckingRepair(true);
+        setRepairCheckError(null);
+        getRepairByPickupId(pickup.id)
+          .then((r) => {
+            if (isMounted) setRepair(r);
+          })
+          .catch((err) => {
+            if (isMounted) setRepairCheckError(err.message || 'Failed to check repair status.');
+          })
+          .finally(() => {
+            if (isMounted) setCheckingRepair(false);
+          });
+      }
+    } else {
+      setRepair(null);
+      setCheckingRepair(false);
+      setRepairCheckError(null);
+    }
+    return () => {
+      isMounted = false;
+    };
+  }, [pickup, associatedRepair]);
+
+  const handleNavigateRepair = (repairId) => {
+    onClose();
+    if (onViewRepair) {
+      onViewRepair(repairId);
+    } else {
+      navigate(`/shop-owner/repairs?id=${encodeURIComponent(repairId)}`);
+    }
+  };
 
   const isCurrentAction = actionLoading === pickupId;
 
@@ -476,6 +588,94 @@ function ShopOwnerPickupDetailModal({
               </p>
             </div>
 
+            {/* Workshop Repair Status Section (for RECEIVED pickups) */}
+            {pickup.status === 'RECEIVED' && (
+              <div className="pt-2 border-t border-surface-100 dark:border-slate-800">
+                <span className="text-slate-400 dark:text-slate-500 block text-2xs font-semibold uppercase mb-2">
+                  Workshop Repair Job
+                </span>
+
+                {checkingRepair ? (
+                  <div className="p-3.5 rounded-xl bg-surface-50 dark:bg-slate-800/40 border border-surface-200/70 dark:border-slate-800 flex items-center gap-2 text-xs text-slate-500 dark:text-slate-400">
+                    <RefreshCw size={13} className="animate-spin text-primary-600 dark:text-primary-400 shrink-0" />
+                    <span>Checking for associated repair record...</span>
+                  </div>
+                ) : repairCheckError ? (
+                  <div className="p-3.5 rounded-xl bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-900/60 text-xs text-amber-800 dark:text-amber-300 flex items-center justify-between gap-2">
+                    <span>{repairCheckError}</span>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setCheckingRepair(true);
+                        setRepairCheckError(null);
+                        getRepairByPickupId(pickup.id)
+                          .then(setRepair)
+                          .catch((err) => setRepairCheckError(err.message || 'Failed to check repair status.'))
+                          .finally(() => setCheckingRepair(false));
+                      }}
+                      className="underline font-semibold hover:text-amber-900 dark:hover:text-amber-200"
+                    >
+                      Retry
+                    </button>
+                  </div>
+                ) : repair ? (
+                  <div className="p-4 rounded-xl bg-primary-50/70 dark:bg-primary-950/40 border border-primary-200 dark:border-primary-900/60 space-y-3">
+                    <div className="flex items-center justify-between">
+                      <span className="text-2xs font-bold uppercase tracking-wider text-primary-700 dark:text-primary-300 flex items-center gap-1.5">
+                        <CheckCircle2 size={14} className="text-emerald-500" />
+                        Repair Already Created
+                      </span>
+                      <Badge variant={REPAIR_BADGE[repair.status] || 'default'} size="sm">
+                        {REPAIR_STATUS_LABELS[repair.status] || repair.status}
+                      </Badge>
+                    </div>
+
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pt-2 border-t border-primary-200/50 dark:border-primary-900/40">
+                      <div>
+                        <p className="text-xs text-slate-600 dark:text-slate-300">
+                          Repair Job ID: <strong className="font-mono text-slate-900 dark:text-white font-bold">{repair.repairId}</strong>
+                        </p>
+                        <p className="text-2xs text-slate-500 dark:text-slate-400 mt-0.5">
+                          Current Status: <span className="font-semibold text-slate-700 dark:text-slate-300">{REPAIR_STATUS_LABELS[repair.status] || repair.status}</span>
+                        </p>
+                      </div>
+                      <Button
+                        size="sm"
+                        variant="primary"
+                        leftIcon={<Wrench size={13} />}
+                        onClick={() => handleNavigateRepair(repair.repairId)}
+                      >
+                        View Repair
+                      </Button>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="p-3.5 rounded-xl bg-emerald-50/60 dark:bg-emerald-950/30 border border-emerald-200 dark:border-emerald-900/50 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                    <div>
+                      <p className="font-semibold text-emerald-900 dark:text-emerald-200 text-xs flex items-center gap-1.5">
+                        <CheckCircle2 size={14} className="text-emerald-600 dark:text-emerald-400" />
+                        Device Received at Workshop
+                      </p>
+                      <p className="text-2xs text-emerald-700 dark:text-emerald-400 mt-0.5">
+                        Ready for diagnostic assessment. No repair job created yet.
+                      </p>
+                    </div>
+                    <Button
+                      size="sm"
+                      variant="primary"
+                      leftIcon={<Wrench size={13} />}
+                      onClick={() => {
+                        onClose();
+                        if (onOpenCreateRepair) onOpenCreateRepair(pickup);
+                      }}
+                    >
+                      Create Repair Job
+                    </Button>
+                  </div>
+                )}
+              </div>
+            )}
+
             {/* Timestamps */}
             <div className="pt-2 text-2xs text-slate-400 dark:text-slate-500 flex flex-wrap items-center justify-between gap-2 border-t border-surface-100 dark:border-slate-800">
               <span>Submitted: {pickup.createdAt ? new Date(pickup.createdAt).toLocaleString() : 'N/A'}</span>
@@ -568,20 +768,42 @@ function ShopOwnerPickupDetailModal({
 
               {pickup.status === 'RECEIVED' && (
                 <div className="flex items-center gap-2">
-                  <span className="text-xs font-semibold text-emerald-600 dark:text-emerald-400 flex items-center gap-1.5">
-                    <CheckCircle2 size={14} /> Received
-                  </span>
-                  <Button
-                    size="sm"
-                    variant="primary"
-                    leftIcon={<Wrench size={14} />}
-                    onClick={() => {
-                      onClose();
-                      if (onOpenCreateRepair) onOpenCreateRepair(pickup);
-                    }}
-                  >
-                    Create Repair
-                  </Button>
+                  {checkingRepair ? (
+                    <span className="text-2xs text-slate-400 flex items-center gap-1">
+                      <RefreshCw size={12} className="animate-spin" /> Checking repair...
+                    </span>
+                  ) : repair ? (
+                    <>
+                      <span className="text-xs font-semibold text-emerald-600 dark:text-emerald-400 flex items-center gap-1.5">
+                        <CheckCircle2 size={14} /> Repair Created ({repair.repairId})
+                      </span>
+                      <Button
+                        size="sm"
+                        variant="primary"
+                        leftIcon={<Wrench size={14} />}
+                        onClick={() => handleNavigateRepair(repair.repairId)}
+                      >
+                        View Repair
+                      </Button>
+                    </>
+                  ) : (
+                    <>
+                      <span className="text-xs font-semibold text-emerald-600 dark:text-emerald-400 flex items-center gap-1.5">
+                        <CheckCircle2 size={14} /> Received
+                      </span>
+                      <Button
+                        size="sm"
+                        variant="primary"
+                        leftIcon={<Wrench size={14} />}
+                        onClick={() => {
+                          onClose();
+                          if (onOpenCreateRepair) onOpenCreateRepair(pickup);
+                        }}
+                      >
+                        Create Repair
+                      </Button>
+                    </>
+                  )}
                 </div>
               )}
 
@@ -592,6 +814,7 @@ function ShopOwnerPickupDetailModal({
               )}
             </div>
           )}
+
         </div>
       </div>
     </div>
@@ -607,6 +830,8 @@ function PickupCard({
   onUpdateStatus,
   onOpenCreateRepair,
   actionLoading,
+  associatedRepair,
+  onViewRepair,
 }) {
   const isCurrentAction = actionLoading === pickup.id;
 
@@ -745,17 +970,42 @@ function PickupCard({
           {/* Terminal states */}
           {pickup.status === 'RECEIVED' && (
             <div className="flex items-center gap-2">
-              <span className="text-2xs font-semibold text-emerald-600 dark:text-emerald-400 flex items-center gap-1">
-                <CheckCircle2 size={12} /> Received
-              </span>
-              <Button
-                size="xs"
-                variant="primary"
-                leftIcon={<Wrench size={11} />}
-                onClick={() => onOpenCreateRepair && onOpenCreateRepair(pickup)}
-              >
-                Create Repair
-              </Button>
+              {associatedRepair ? (
+                <>
+                  <span
+                    className="text-2xs font-semibold text-emerald-600 dark:text-emerald-400 flex items-center gap-1"
+                    title={`Repair ${associatedRepair.repairId} · Status: ${associatedRepair.status}`}
+                  >
+                    <CheckCircle2 size={12} /> Repair Created
+                  </span>
+                  <Button
+                    size="xs"
+                    variant="primary"
+                    leftIcon={<Wrench size={11} />}
+                    onClick={() => {
+                      if (onViewRepair) {
+                        onViewRepair(associatedRepair.repairId);
+                      }
+                    }}
+                  >
+                    View Repair
+                  </Button>
+                </>
+              ) : (
+                <>
+                  <span className="text-2xs font-semibold text-emerald-600 dark:text-emerald-400 flex items-center gap-1">
+                    <CheckCircle2 size={12} /> Received
+                  </span>
+                  <Button
+                    size="xs"
+                    variant="primary"
+                    leftIcon={<Wrench size={11} />}
+                    onClick={() => onOpenCreateRepair && onOpenCreateRepair(pickup)}
+                  >
+                    Create Repair
+                  </Button>
+                </>
+              )}
             </div>
           )}
 
@@ -776,8 +1026,11 @@ export default function PickupRequestsPage() {
   const navigate = useNavigate();
 
   const [pickups, setPickups] = useState([]);
+  const [repairs, setRepairs] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [repairsLoading, setRepairsLoading] = useState(false);
   const [error, setError] = useState(null);
+  const [repairsError, setRepairsError] = useState(null);
 
   // Search & Active Filter Tab
   const [searchTerm, setSearchTerm] = useState('');
@@ -792,24 +1045,59 @@ export default function PickupRequestsPage() {
   const [actionLoading, setActionLoading] = useState(null);
   const [actionNotice, setActionNotice] = useState(null);
 
-  // Fetch shop pickups from backend
+  // Map existing repairs by pickup_request_id for instant O(1) duplicate checks
+  const repairsByPickupId = useMemo(() => {
+    const map = {};
+    for (const r of repairs) {
+      if (r.pickupRequestId) {
+        map[r.pickupRequestId] = r;
+      }
+    }
+    return map;
+  }, [repairs]);
+
+  // Fetch shop pickups and existing repairs from backend
   const fetchPickups = useCallback(async () => {
     setLoading(true);
     setError(null);
+    setRepairsLoading(true);
+    setRepairsError(null);
     try {
-      const data = await getShopOwnerPickups();
-      setPickups(data);
+      const [pickupData, repairData] = await Promise.all([
+        getShopOwnerPickups(),
+        getShopOwnerRepairs().catch((err) => {
+          console.warn('Failed to load shop owner repairs for pickup association:', err);
+          setRepairsError(err.message || 'Failed to check associated repairs.');
+          return [];
+        }),
+      ]);
+      setPickups(pickupData);
+      setRepairs(repairData);
     } catch (err) {
       console.error('Failed to load shop owner pickups:', err);
       setError(err.message || 'Unable to load pickup requests for your shop.');
     } finally {
       setLoading(false);
+      setRepairsLoading(false);
     }
   }, []);
 
   useEffect(() => {
     fetchPickups();
   }, [fetchPickups]);
+
+  const handleViewRepair = (repairId) => {
+    navigate(`/shop-owner/repairs?id=${encodeURIComponent(repairId)}`);
+  };
+
+  const handleOpenCreateRepair = (pickup) => {
+    const existing = repairsByPickupId[pickup.id];
+    if (existing) {
+      handleViewRepair(existing.repairId);
+      return;
+    }
+    setCreatingRepairPickup(pickup);
+  };
 
   // Sync selected pickup ID from query parameters
   useEffect(() => {
@@ -1123,8 +1411,10 @@ export default function PickupRequestsPage() {
                   onAccept={handleAccept}
                   onOpenReject={setRejectingPickup}
                   onUpdateStatus={handleUpdateStatus}
-                  onOpenCreateRepair={setCreatingRepairPickup}
+                  onOpenCreateRepair={handleOpenCreateRepair}
                   actionLoading={actionLoading}
+                  associatedRepair={repairsByPickupId[p.id]}
+                  onViewRepair={handleViewRepair}
                 />
               ))}
             </div>
@@ -1168,8 +1458,10 @@ export default function PickupRequestsPage() {
           onAccept={handleAccept}
           onOpenReject={setRejectingPickup}
           onUpdateStatus={handleUpdateStatus}
-          onOpenCreateRepair={setCreatingRepairPickup}
+          onOpenCreateRepair={handleOpenCreateRepair}
           actionLoading={actionLoading}
+          associatedRepair={selectedPickupId ? repairsByPickupId[selectedPickupId] : null}
+          onViewRepair={handleViewRepair}
         />
       )}
 
@@ -1185,10 +1477,13 @@ export default function PickupRequestsPage() {
       {/* ── Create Repair Modal ────────────────────────────── */}
       <CreateRepairModal
         pickup={creatingRepairPickup}
+        existingRepair={creatingRepairPickup ? repairsByPickupId[creatingRepairPickup.id] : null}
         isOpen={Boolean(creatingRepairPickup)}
         onClose={() => setCreatingRepairPickup(null)}
+        onViewRepair={handleViewRepair}
         onSuccess={(createdRepair) => {
           setCreatingRepairPickup(null);
+          setRepairs((prev) => [createdRepair, ...prev]);
           setActionNotice({
             type: 'success',
             message: `Repair ${createdRepair.repairId} created successfully! Redirecting...`,

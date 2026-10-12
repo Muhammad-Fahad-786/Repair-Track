@@ -58,6 +58,7 @@ import MyShopPage             from '../pages/shopowner/MyShopPage';
 import AdminPage              from '../pages/AdminPage';
 import ShopRequestsPage       from '../pages/admin/ShopRequestsPage';
 import ShopsAdminPage         from '../pages/admin/ShopsAdminPage';
+import AdminShopDetailsPage   from '../pages/admin/AdminShopDetailsPage';
 import ShopOwnersPage         from '../pages/admin/ShopOwnersPage';
 import CustomersAdminPage     from '../pages/admin/CustomersAdminPage';
 import RepairsAdminPage       from '../pages/admin/RepairsAdminPage';
@@ -84,25 +85,11 @@ export default function AppRoutes() {
         <Route path={ROUTES.REGISTER} element={<RegisterPage />} />
       </Route>
 
-      {/* ── Shop Owner Auth ─────────────────────────────────── */}
+      {/* ── Shop Owner Auth & Registration ─────────────────── */}
       <Route element={<AuthLayout />}>
         <Route path={ROUTES.SHOP_OWNER_LOGIN}   element={<ShopOwnerLoginPage />} />
-        <Route
-          path={ROUTES.REGISTER_SHOP}
-          element={
-            <RoleRoute requiredRole={ROLES.CUSTOMER} loginPath={ROUTES.LOGIN}>
-              <RegisterShopPage />
-            </RoleRoute>
-          }
-        />
-        <Route
-          path={ROUTES.APPLICATION_STATUS}
-          element={
-            <ProtectedRoute loginPath={ROUTES.LOGIN}>
-              <ApplicationStatusPage />
-            </ProtectedRoute>
-          }
-        />
+        <Route path={ROUTES.REGISTER_SHOP}     element={<RegisterShopPage />} />
+        <Route path={ROUTES.APPLICATION_STATUS} element={<ApplicationStatusPage />} />
       </Route>
 
       {/* ── Admin Auth ──────────────────────────────────────── */}
@@ -125,6 +112,8 @@ export default function AppRoutes() {
         <Route path="shop-requests" element={<ShopRequestsPage />} />
         {/* /admin/shops */}
         <Route path="shops" element={<ShopsAdminPage />} />
+        {/* /admin/shops/:shopId */}
+        <Route path="shops/:shopId" element={<AdminShopDetailsPage />} />
         {/* /admin/shop-owners */}
         <Route path="shop-owners" element={<ShopOwnersPage />} />
         {/* /admin/customers */}

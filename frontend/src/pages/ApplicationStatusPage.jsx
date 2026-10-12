@@ -1,21 +1,20 @@
-// ─────────────────────────────────────────────────────────────
-// RepairTrack — Shop Application Status Page (Phase 5.3)
-// Route: /application-status
-// Real backend integration: GET /api/v1/shop-applications/my
-// Authoritative status and role transition for authenticated user.
-// ─────────────────────────────────────────────────────────────
-
 import { useState, useEffect, useCallback } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import {
-  Clock, CheckCircle2, XCircle, Home, LogIn, Mail, Store,
-  AlertCircle, ArrowRight, RefreshCw, MapPin, Truck, Check, LayoutDashboard
+  Clock, CheckCircle2, XCircle, Home, LogIn, Mail, Lock, Eye, EyeOff, Store,
+  AlertCircle, ArrowRight, RefreshCw, LayoutDashboard, Search
 } from 'lucide-react';
 import Card from '../components/ui/Card';
 import Button from '../components/ui/Button';
+import Input from '../components/ui/Input';
 import { ROUTES, ROLES } from '../constants';
 import { useAuth } from '../context/AuthContext';
-import { getMyShopApplications } from '../services/shopApplicationService';
+import {
+  getMyShopApplications,
+  getShopApplicationStatus,
+  checkShopApplicationStatus,
+} from '../services/shopApplicationService';
+import { isValidEmail } from '../utils';
 
 // ─── Status configurations ────────────────────────────────────
 const STATUS_CONFIG = {
@@ -31,7 +30,7 @@ const STATUS_CONFIG = {
     nextSteps: [
       'Shop applications are typically verified within 1–2 business days.',
       'Our team may reach out via phone or email if additional documentation is needed.',
-      'Once approved, your account is automatically upgraded to Shop Owner.',
+      'Once approved, your Shop Owner account will be activated immediately.',
     ],
   },
   APPROVED: {
@@ -42,9 +41,9 @@ const STATUS_CONFIG = {
     badgeLabel:  'Approved & Verified',
     title:       'Congratulations! Your Shop is Approved 🎉',
     description:
-      'Your repair shop has been approved and activated. Your account has been upgraded to Shop Owner.',
+      'Your repair shop has been approved and activated. You can now sign in with your Shop Owner account.',
     nextSteps: [
-      'Your shop profile is now live and searchable by nearby customers in the public directory.',
+      'Your shop profile is now live and searchable in the public repair directory.',
       'You can receive doorstep pickup requests in your designated service areas.',
       'Access your Shop Owner dashboard to review shop hours, set up technicians, and manage job cards.',
     ],
@@ -64,6 +63,7 @@ const STATUS_CONFIG = {
 
 export default function ApplicationStatusPage() {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const { user, role, refreshUser } = useAuth();
 
   const [applications, setApplications] = useState([]);
@@ -72,29 +72,62 @@ export default function ApplicationStatusPage() {
   const [error, setError]               = useState('');
   const [navigating, setNavigating]     = useState(false);
 
+  // Manual lookup state (when no token in storage and not logged in)
+  const [lookupMode, setLookupMode]     = useState(false);
+  const [lookupForm, setLookupForm]     = useState({ email: '', password: '' });
+  const [lookupErrors, setLookupErrors] = useState({});
+  const [lookupError, setLookupError]   = useState('');
+  const [lookupLoading, setLookupLoading] = useState(false);
+  const [showPw, setShowPw]             = useState(false);
+
   // ─── Fetch real applications from backend ─────────────────────
   const loadApplications = useCallback(async (isManualRefresh = false) => {
     if (isManualRefresh) setRefreshing(true);
     else setLoading(true);
     setError('');
 
-    try {
-      const data = await getMyShopApplications();
-      setApplications(data);
+    const queryToken = searchParams.get('token');
+    const storedToken = queryToken || localStorage.getItem('repairtrack_applicant_token');
 
-      // If an approved application is found, refresh user session from backend
-      // so AuthContext receives the authoritative SHOP_OWNER role.
-      const hasApproved = data.some((a) => a.status === 'APPROVED');
-      if (hasApproved && refreshUser) {
-        await refreshUser();
+    try {
+      if (storedToken) {
+        // Fetch via application token
+        const data = await getShopApplicationStatus(storedToken);
+        setApplications([data]);
+        setLookupMode(false);
+
+        if (data.status === 'APPROVED' && user && refreshUser) {
+          await refreshUser();
+        }
+      } else if (user) {
+        // Authenticated user session fallback
+        const data = await getMyShopApplications();
+        setApplications(data);
+        setLookupMode(false);
+
+        const hasApproved = data.some((a) => a.status === 'APPROVED');
+        if (hasApproved && refreshUser) {
+          await refreshUser();
+        }
+      } else {
+        // No token and no user: show credential lookup form
+        setApplications([]);
+        setLookupMode(true);
       }
     } catch (err) {
-      setError(err.message || 'Failed to retrieve application status. Please try again.');
+      // If token is invalid or expired, fallback to lookup mode
+      if (storedToken) {
+        localStorage.removeItem('repairtrack_applicant_token');
+        setLookupMode(true);
+        setError('Your previous session expired. Please enter your email and password to check status.');
+      } else {
+        setError(err.message || 'Failed to retrieve application status. Please try again.');
+      }
     } finally {
       setLoading(false);
       setRefreshing(false);
     }
-  }, [refreshUser]);
+  }, [searchParams, user, refreshUser]);
 
   useEffect(() => {
     loadApplications();
@@ -115,6 +148,49 @@ export default function ApplicationStatusPage() {
     }
   };
 
+  // Handle credential lookup submission
+  const handleLookupSubmit = async (e) => {
+    e.preventDefault();
+    const errs = {};
+    if (!lookupForm.email.trim()) errs.email = 'Email is required';
+    else if (!isValidEmail(lookupForm.email)) errs.email = 'Enter a valid email address';
+    if (!lookupForm.password) errs.password = 'Password is required';
+
+    if (Object.keys(errs).length) {
+      setLookupErrors(errs);
+      return;
+    }
+
+    setLookupLoading(true);
+    setLookupError('');
+    try {
+      const result = await checkShopApplicationStatus({
+        email: lookupForm.email,
+        password: lookupForm.password,
+      });
+
+      if (result.application_token) {
+        localStorage.setItem('repairtrack_applicant_token', result.application_token);
+      }
+      setApplications([result]);
+      setLookupMode(false);
+      setError('');
+    } catch (err) {
+      setLookupError(err.message || 'No matching shop application found for these credentials.');
+    } finally {
+      setLookupLoading(false);
+    }
+  };
+
+  const handleClearAndLookupAnother = () => {
+    localStorage.removeItem('repairtrack_applicant_token');
+    setApplications([]);
+    setLookupMode(true);
+    setError('');
+    setLookupError('');
+    setLookupForm({ email: '', password: '' });
+  };
+
   // ─── Loading State ────────────────────────────────────────────
   if (loading) {
     return (
@@ -130,8 +206,131 @@ export default function ApplicationStatusPage() {
     );
   }
 
+  // ─── Credential Lookup Form (When not logged in and no token) ──
+  if (lookupMode) {
+    return (
+      <div className="w-full max-w-md mx-auto py-4">
+        <Card padding="lg" className="shadow-modal border border-surface-200 dark:border-slate-800 rounded-2xl">
+          <div className="text-center mb-6">
+            <div className="flex justify-center mb-3">
+              <div className="flex items-center justify-center h-12 w-12 rounded-2xl bg-primary-600 text-white shadow-sm ring-4 ring-primary-50 dark:ring-primary-950/60">
+                <Search size={22} />
+              </div>
+            </div>
+
+            <h1 className="text-2xl font-bold tracking-tight text-slate-900 dark:text-slate-100">
+              Check Application Status
+            </h1>
+            <p className="text-xs text-slate-500 dark:text-slate-400 mt-1 max-w-xs mx-auto">
+              Enter the credentials you provided when registering your repair shop.
+            </p>
+          </div>
+
+          {error && (
+            <div className="mb-4 p-3 rounded-xl bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-800/40 text-amber-800 dark:text-amber-300 text-xs font-medium flex items-start gap-2">
+              <AlertCircle size={16} className="shrink-0 mt-0.5" />
+              <span>{error}</span>
+            </div>
+          )}
+
+          {lookupError && (
+            <div className="mb-4 p-3 rounded-xl bg-danger-50 dark:bg-danger-950/40 border border-danger-200 dark:border-danger-800/40 text-danger-700 dark:text-danger-400 text-xs font-medium flex items-start gap-2">
+              <AlertCircle size={16} className="shrink-0 mt-0.5" />
+              <span>{lookupError}</span>
+            </div>
+          )}
+
+          <form onSubmit={handleLookupSubmit} noValidate className="flex flex-col gap-4">
+            <Input
+              label="Applicant Email Address"
+              name="email"
+              type="email"
+              placeholder="applicant@example.com"
+              value={lookupForm.email}
+              onChange={(e) => {
+                setLookupForm((p) => ({ ...p, email: e.target.value }));
+                if (lookupErrors.email) setLookupErrors((p) => ({ ...p, email: '' }));
+                if (lookupError) setLookupError('');
+              }}
+              error={lookupErrors.email}
+              leftIcon={<Mail size={16} />}
+              required
+              autoComplete="email"
+            />
+
+            <Input
+              label="Application Password"
+              name="password"
+              type={showPw ? 'text' : 'password'}
+              placeholder="••••••••"
+              value={lookupForm.password}
+              onChange={(e) => {
+                setLookupForm((p) => ({ ...p, password: e.target.value }));
+                if (lookupErrors.password) setLookupErrors((p) => ({ ...p, password: '' }));
+                if (lookupError) setLookupError('');
+              }}
+              error={lookupErrors.password}
+              leftIcon={<Lock size={16} />}
+              rightIcon={
+                <button
+                  type="button"
+                  onClick={() => setShowPw((v) => !v)}
+                  className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 transition-colors pointer-events-auto p-0.5 focus:outline-none"
+                  aria-label={showPw ? 'Hide password' : 'Show password'}
+                >
+                  {showPw ? <EyeOff size={16} /> : <Eye size={16} />}
+                </button>
+              }
+              required
+              autoComplete="current-password"
+            />
+
+            <Button
+              type="submit"
+              fullWidth
+              size="lg"
+              loading={lookupLoading}
+              className="mt-1"
+              leftIcon={<Search size={16} />}
+            >
+              Find Application
+            </Button>
+          </form>
+
+          <div className="flex items-center gap-3 my-5">
+            <div className="flex-1 h-px bg-surface-200 dark:bg-slate-800" />
+            <span className="text-2xs uppercase tracking-wider font-medium text-slate-400 dark:text-slate-500">or</span>
+            <div className="flex-1 h-px bg-surface-200 dark:bg-slate-800" />
+          </div>
+
+          <div className="flex flex-col gap-2">
+            <Button
+              as={Link}
+              to={ROUTES.REGISTER_SHOP}
+              variant="outline"
+              fullWidth
+              size="md"
+              leftIcon={<Store size={15} />}
+            >
+              Register a New Shop
+            </Button>
+            <Button
+              as={Link}
+              to={ROUTES.SHOP_OWNER_LOGIN}
+              variant="ghost"
+              fullWidth
+              size="sm"
+            >
+              Already Approved? Sign In Here →
+            </Button>
+          </div>
+        </Card>
+      </div>
+    );
+  }
+
   // ─── Error State ──────────────────────────────────────────────
-  if (error) {
+  if (error && applications.length === 0) {
     return (
       <div className="w-full max-w-xl mx-auto py-8">
         <Card padding="lg" className="shadow-modal border border-danger-200 dark:border-red-900/50 rounded-2xl text-center">
@@ -150,8 +349,12 @@ export default function ApplicationStatusPage() {
             >
               Retry
             </Button>
-            <Button as={Link} to={ROUTES.HOME} variant="secondary">
-              Back to Home
+            <Button
+              onClick={handleClearAndLookupAnother}
+              variant="secondary"
+              leftIcon={<Search size={14} />}
+            >
+              Check by Email & Password
             </Button>
           </div>
         </Card>
@@ -172,7 +375,7 @@ export default function ApplicationStatusPage() {
 
           <h2 className="text-xl font-bold text-slate-900 dark:text-slate-100 mb-1">No Application Found</h2>
           <p className="text-sm text-slate-500 dark:text-slate-400 max-w-md mx-auto mb-6 leading-relaxed">
-            No shop registration application has been submitted for <strong className="text-slate-700 dark:text-slate-300">{user?.email}</strong>. Register your repair workshop today to join our verified partner network.
+            No active shop registration application was found. Register your repair workshop today to join our verified partner network.
           </p>
 
           <div className="flex flex-col gap-2.5 max-w-xs mx-auto">
@@ -186,11 +389,20 @@ export default function ApplicationStatusPage() {
               Register Your Shop
             </Button>
             <Button
-              as={Link}
-              to={ROUTES.HOME}
+              onClick={handleClearAndLookupAnother}
               variant="outline"
               fullWidth
               size="md"
+              leftIcon={<Search size={14} />}
+            >
+              Search by Email & Password
+            </Button>
+            <Button
+              as={Link}
+              to={ROUTES.HOME}
+              variant="ghost"
+              fullWidth
+              size="sm"
               leftIcon={<Home size={14} />}
             >
               Back to Home
@@ -211,6 +423,9 @@ export default function ApplicationStatusPage() {
         year: 'numeric',
       })
     : '—';
+
+  const applicantEmail = activeApp.applicant_email || user?.email || '—';
+  const applicantName = activeApp.applicant_name || user?.name || null;
 
   return (
     <div className="w-full max-w-xl mx-auto py-2 sm:py-4">
@@ -252,9 +467,15 @@ export default function ApplicationStatusPage() {
               <span className="text-sm font-semibold text-slate-900 dark:text-slate-100">{activeApp.shop_name}</span>
             </div>
             <div>
-              <span className="text-slate-400 dark:text-slate-500 block mb-0.5">Registered Account</span>
-              <span className="text-sm font-medium text-slate-800 dark:text-slate-200">{user?.email || '—'}</span>
+              <span className="text-slate-400 dark:text-slate-500 block mb-0.5">Applicant Email</span>
+              <span className="text-sm font-medium text-slate-800 dark:text-slate-200">{applicantEmail}</span>
             </div>
+            {applicantName && (
+              <div>
+                <span className="text-slate-400 dark:text-slate-500 block mb-0.5">Applicant Name</span>
+                <span className="text-sm font-medium text-slate-700 dark:text-slate-300">{applicantName}</span>
+              </div>
+            )}
             <div>
               <span className="text-slate-400 dark:text-slate-500 block mb-0.5">Location</span>
               <span className="text-sm font-medium text-slate-700 dark:text-slate-300">{activeApp.city || activeApp.address || '—'}</span>
@@ -308,16 +529,29 @@ export default function ApplicationStatusPage() {
         {/* Role actions */}
         <div className="flex flex-col gap-2.5">
           {activeApp.status === 'APPROVED' ? (
-            <Button
-              onClick={handleGoToDashboard}
-              loading={navigating}
-              fullWidth
-              size="lg"
-              leftIcon={<LayoutDashboard size={16} />}
-              rightIcon={<ArrowRight size={16} />}
-            >
-              Go to Shop Owner Dashboard
-            </Button>
+            role === ROLES.SHOP_OWNER ? (
+              <Button
+                onClick={handleGoToDashboard}
+                loading={navigating}
+                fullWidth
+                size="lg"
+                leftIcon={<LayoutDashboard size={16} />}
+                rightIcon={<ArrowRight size={16} />}
+              >
+                Go to Shop Owner Dashboard
+              </Button>
+            ) : (
+              <Button
+                as={Link}
+                to={ROUTES.SHOP_OWNER_LOGIN}
+                fullWidth
+                size="lg"
+                leftIcon={<LogIn size={16} />}
+                rightIcon={<ArrowRight size={16} />}
+              >
+                Sign In to Shop Owner Portal
+              </Button>
+            )
           ) : activeApp.status === 'REJECTED' ? (
             <Button
               as={Link}
@@ -342,6 +576,15 @@ export default function ApplicationStatusPage() {
               Refresh Status
             </Button>
             <Button
+              variant="outline"
+              onClick={handleClearAndLookupAnother}
+              fullWidth
+              size="md"
+              leftIcon={<Search size={14} />}
+            >
+              Check Other
+            </Button>
+            <Button
               as={Link}
               to={ROUTES.HOME}
               variant="secondary"
@@ -349,7 +592,7 @@ export default function ApplicationStatusPage() {
               size="md"
               leftIcon={<Home size={14} />}
             >
-              Back to Home
+              Home
             </Button>
           </div>
         </div>

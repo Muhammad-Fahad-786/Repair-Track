@@ -1,7 +1,13 @@
+from pathlib import Path
 import os
 from dotenv import load_dotenv
 
-load_dotenv()
+_BACKEND_DIR = Path(__file__).resolve().parent.parent.parent
+_ENV_PATH = _BACKEND_DIR / ".env"
+if _ENV_PATH.exists():
+    load_dotenv(_ENV_PATH, override=True)
+else:
+    load_dotenv(override=True)
 
 
 class Settings:
@@ -30,7 +36,7 @@ class Settings:
     # Leave blank to disable AI features without errors.
     # ---------------------------------------------------------------------------
     GEMINI_API_KEY: str = os.getenv("GEMINI_API_KEY", "")
-    GEMINI_MODEL: str = os.getenv("GEMINI_MODEL", "gemini-1.5-flash")
+    GEMINI_MODEL: str = os.getenv("GEMINI_MODEL", "gemini-3.6-flash")
 
     @property
     def allowed_origins(self) -> list[str]:

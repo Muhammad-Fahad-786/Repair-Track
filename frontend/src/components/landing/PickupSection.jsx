@@ -28,7 +28,7 @@ function PickupFlowCard() {
           </div>
           <div>
             <p className="text-xs font-bold text-slate-900 dark:text-slate-100">Pickup Request</p>
-            <p className="text-2xs text-slate-400 dark:text-slate-500">#PK-2026-8812</p>
+            <p className="text-2xs text-slate-400 dark:text-slate-500">#PICK-2026-8812</p>
           </div>
         </div>
         <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-2xs font-bold bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-800/50">
@@ -42,7 +42,7 @@ function PickupFlowCard() {
         <MapPin size={15} className="text-primary-600 dark:text-primary-400 mt-0.5 shrink-0" />
         <div className="min-w-0">
           <p className="font-semibold text-slate-900 dark:text-slate-100 text-xs">Pickup Location</p>
-          <p className="text-slate-500 dark:text-slate-400 text-xs truncate">House 42, Block B, Model Town, Lahore</p>
+          <p className="text-slate-500 dark:text-slate-400 text-xs truncate">Flat 402, Lotus Towers, Sector 62, Noida</p>
         </div>
       </div>
 

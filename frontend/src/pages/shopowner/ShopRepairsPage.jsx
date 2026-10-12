@@ -10,7 +10,7 @@
 //   POST  /api/v1/shop-owner/repairs/analyze  (Phase 5.8 -- AI)
 // ─────────────────────────────────────────────────────────────
 
-import { useState, useEffect, useCallback, useMemo } from 'react';
+import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { useParams, useSearchParams, Link } from 'react-router-dom';
 import {
   Wrench, CheckCircle2, Clock, AlertCircle, RefreshCw,
@@ -83,6 +83,7 @@ function ShopRepairDetailModal({ repairId, onClose, onRefreshList }) {
   const [aiResult, setAiResult] = useState(null);      // { success, category?, priority?, summary?, message? }
   const [analyzingAi, setAnalyzingAi] = useState(false);
   const [aiPanelOpen, setAiPanelOpen] = useState(false);
+  const inFlightAiRef = useRef(false);
 
   const fetchDetail = useCallback(async () => {
     if (!repairId) return;
@@ -184,7 +185,8 @@ function ShopRepairDetailModal({ repairId, onClose, onRefreshList }) {
   // AI analysis handler (Phase 5.8)
   const handleAiAnalyze = async () => {
     const desc = repair?.problemDescription?.trim();
-    if (!desc || desc.length < 20) return;
+    if (!desc || desc.length < 20 || analyzingAi || inFlightAiRef.current) return;
+    inFlightAiRef.current = true;
     setAnalyzingAi(true);
     setAiResult(null);
     setAiPanelOpen(true);
@@ -192,9 +194,13 @@ function ShopRepairDetailModal({ repairId, onClose, onRefreshList }) {
       const result = await analyzeRepairProblem(desc);
       setAiResult(result);
     } catch (err) {
-      // Client-side validation error (too short, etc.)
-      setAiResult({ success: false, message: err.message || 'AI analysis failed.' });
+      const rawMsg = err.message || '';
+      const safeMsg = rawMsg.toLowerCase().includes('timeout')
+        ? 'AI analysis timed out. You can retry or continue manually.'
+        : rawMsg || 'AI analysis failed.';
+      setAiResult({ success: false, message: safeMsg });
     } finally {
+      inFlightAiRef.current = false;
       setAnalyzingAi(false);
     }
   };
@@ -451,7 +457,7 @@ function ShopRepairDetailModal({ repairId, onClose, onRefreshList }) {
                             <button
                               onClick={handleAiAnalyze}
                               disabled={analyzingAi}
-                              className="text-2xs text-violet-500 hover:text-violet-700 dark:hover:text-violet-300 underline underline-offset-2 transition-colors"
+                              className="text-2xs text-violet-500 hover:text-violet-700 dark:hover:text-violet-300 underline underline-offset-2 transition-colors disabled:opacity-50"
                             >
                               Re-analyze
                             </button>
@@ -467,7 +473,7 @@ function ShopRepairDetailModal({ repairId, onClose, onRefreshList }) {
                               <button
                                 onClick={handleAiAnalyze}
                                 disabled={analyzingAi}
-                                className="text-2xs text-violet-500 hover:text-violet-700 dark:hover:text-violet-300 underline underline-offset-2 mt-1 transition-colors"
+                                className="text-2xs text-violet-500 hover:text-violet-700 dark:hover:text-violet-300 underline underline-offset-2 mt-1 transition-colors disabled:opacity-50"
                               >
                                 Try again
                               </button>

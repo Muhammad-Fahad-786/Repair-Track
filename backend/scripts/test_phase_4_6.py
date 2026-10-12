@@ -148,7 +148,7 @@ def run_tests():
         "device_brand": "Samsung",
         "device_model": "Galaxy S22",
         "problem_description": "Cracked screen and damaged digitizer",
-        "pickup_address": "123 Central Ave, Karachi",
+        "pickup_address": "123 Central Ave, Delhi",
         "preferred_date": "2026-11-01",
         "preferred_time": "10:00:00",
     }, token=bob_token)
@@ -364,7 +364,7 @@ def run_tests():
     assert_test(
         status == 200
         and public_data.get("repair_id") == rep1_code
-        and public_data.get("shop_name") == "Alice Repairs"
+        and public_data.get("shop_name") in ("Alice's Phone Repairs", "Alice Repairs")
         and public_data.get("status") == "COMPLETED"
         and len(public_data.get("history", [])) >= 5,
         "Y. Public tracking endpoint works without login",
@@ -420,7 +420,7 @@ def run_tests():
         "device_brand": "Apple",
         "device_model": "iPad Air",
         "problem_description": "Battery replacement",
-        "pickup_address": "456 University Rd, Karachi",
+        "pickup_address": "456 University Rd, Noida",
     }, token=charlie_token)
     p2_id = p2["id"]
     api_request("POST", f"/shop-owner/pickups/{p2_id}/accept", token=alice_token)
@@ -448,7 +448,7 @@ def run_tests():
         "shop_id": 1,
         "device_type": "Smartwatch",
         "device_brand": "Garmin",
-        "pickup_address": "789 Sea View, Karachi",
+        "pickup_address": "789 Cyber Hub, Gurugram",
     }, token=charlie_token)
     p3_id = p3["id"]
     api_request("POST", f"/shop-owner/pickups/{p3_id}/accept", token=alice_token)

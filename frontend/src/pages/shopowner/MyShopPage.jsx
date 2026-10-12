@@ -76,7 +76,7 @@ export default function MyShopPage() {
       <div className="bg-surface-50 dark:bg-slate-900/60 border border-surface-200 dark:border-slate-800 rounded-xl px-5 py-4 flex items-start gap-3">
         <Edit2 size={16} className="text-slate-400 shrink-0 mt-0.5" />
         <p className="text-xs text-slate-500 dark:text-slate-400 leading-relaxed">
-          Shop profile editing will be available when the backend is connected in Phase 4.
+          Shop profile editing will be available in an upcoming update.
           Contact support to update your shop details in the meantime.
         </p>
       </div>

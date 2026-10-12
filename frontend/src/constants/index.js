@@ -69,6 +69,7 @@ export const ROUTES = {
   ADMIN:               '/admin',
   ADMIN_SHOP_REQUESTS: '/admin/shop-requests',
   ADMIN_SHOPS:         '/admin/shops',
+  ADMIN_SHOP_DETAIL:   (shopId) => `/admin/shops/${shopId}`,
   ADMIN_SHOP_OWNERS:   '/admin/shop-owners',
   ADMIN_CUSTOMERS:     '/admin/customers',
   ADMIN_REPAIRS:       '/admin/repairs',

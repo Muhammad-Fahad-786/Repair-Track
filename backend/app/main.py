@@ -17,6 +17,7 @@ from app.api.routes import repairs
 from app.api.routes import public_track
 from app.api.routes import admin_repairs
 from app.api.routes import shops
+from app.api.routes import admin_shops
 
 # ---------------------------------------------------------------------------
 # Import all models so Base.metadata is populated before create_all()
@@ -82,6 +83,7 @@ app.include_router(repairs.router, prefix="/api/v1")
 app.include_router(public_track.router, prefix="/api/v1")
 app.include_router(admin_repairs.router, prefix="/api/v1")
 app.include_router(shops.router, prefix="/api/v1")
+app.include_router(admin_shops.router, prefix="/api/v1")
 
 # ---------------------------------------------------------------------------
 # Root endpoint

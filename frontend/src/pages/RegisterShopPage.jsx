@@ -10,7 +10,7 @@ import { Link, useNavigate } from 'react-router-dom';
 import {
   User, Mail, Phone, Store, MapPin, CheckSquare, Truck,
   CheckCircle2, ArrowRight, Home, FileText, ChevronDown,
-  Plus, X, Clock, AlertCircle, Info
+  Plus, X, Clock, AlertCircle, Info, Lock, Eye, EyeOff
 } from 'lucide-react';
 import Card from '../components/ui/Card';
 import Button from '../components/ui/Button';
@@ -18,6 +18,7 @@ import Input, { Textarea } from '../components/ui/Input';
 import { ROUTES } from '../constants';
 import { useAuth } from '../context/AuthContext';
 import { submitShopApplication, getMyShopApplications } from '../services/shopApplicationService';
+import { isValidEmail } from '../utils';
 
 // ─── Options ──────────────────────────────────────────────────
 const CATEGORIES = [
@@ -94,10 +95,12 @@ export default function RegisterShopPage() {
 
   // Form state
   const [form, setForm] = useState({
-    // Section A (Owner Information from authenticated user)
-    ownerName: user?.name || '',
-    ownerEmail: user?.email || '',
-    ownerPhone: user?.phone || '',
+    // Section A (Applicant Account Information)
+    name: user?.name || '',
+    email: user?.email || '',
+    password: '',
+    confirmPassword: '',
+    phone: user?.phone || '',
     // Section B (Shop Details)
     shopName: '',
     category: '',
@@ -111,24 +114,27 @@ export default function RegisterShopPage() {
     serviceAreas: [],
   });
 
+  const [showPassword, setShowPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [errors, setErrors] = useState({});
 
-  // Sync user info into form state when user loads
+  // Sync user info into form state when user loads (optional prefill)
   useEffect(() => {
     if (user) {
       setForm((prev) => ({
         ...prev,
-        ownerName: user.name || prev.ownerName,
-        ownerEmail: user.email || prev.ownerEmail,
-        ownerPhone: prev.ownerPhone || user.phone || '',
+        name: prev.name || user.name || '',
+        email: prev.email || user.email || '',
+        phone: prev.phone || user.phone || '',
       }));
     }
   }, [user]);
 
-  // Check if customer already has a pending application
+  // Check if user already has a pending application
   useEffect(() => {
     let isMounted = true;
     async function checkExisting() {
+      if (!user) return;
       try {
         const apps = await getMyShopApplications();
         if (isMounted && Array.isArray(apps)) {
@@ -145,7 +151,7 @@ export default function RegisterShopPage() {
     return () => {
       isMounted = false;
     };
-  }, []);
+  }, [user]);
 
   // ── Field change ─────────────────────────────────────────
   const handleChange = (e) => {
@@ -198,14 +204,26 @@ export default function RegisterShopPage() {
   // ── Validation ───────────────────────────────────────────
   const validate = () => {
     const e = {};
-    // Section B
+    // Section A (Account)
+    if (!form.name.trim()) e.name = 'Full name is required';
+    if (!form.email.trim()) e.email = 'Email address is required';
+    else if (!isValidEmail(form.email)) e.email = 'Enter a valid email address';
+    if (!form.password) e.password = 'Password is required';
+    else if (form.password.length < 8) e.password = 'Password must be at least 8 characters';
+    if (!form.confirmPassword) e.confirmPassword = 'Confirm your password';
+    else if (form.password !== form.confirmPassword) e.confirmPassword = 'Passwords do not match';
+    if (form.phone && form.phone.trim().length > 20) e.phone = 'Phone number is too long';
+
+    // Section B (Shop)
     if (!form.shopName.trim())                   e.shopName     = 'Shop name is required';
     if (!form.category)                          e.category     = 'Please select a category';
     if (!form.address.trim())                    e.address      = 'Shop address is required';
     if (!form.city.trim())                       e.city         = 'City is required';
-    // Section C
+
+    // Section C (Services)
     if (form.selectedServices.length === 0)      e.selectedServices = 'Select at least one service';
-    // Section D
+
+    // Section D (Pickup)
     if (form.pickupAvailable === null)           e.pickupAvailable = 'Please select pickup availability';
     if (form.pickupAvailable === true && form.serviceAreas.length === 0) {
       e.serviceAreas = 'Add at least one service area / locality for pickup';
@@ -230,6 +248,10 @@ export default function RegisterShopPage() {
 
     try {
       const result = await submitShopApplication({
+        name: form.name,
+        email: form.email,
+        password: form.password,
+        phone: form.phone,
         shopName: form.shopName,
         description: form.description,
         address: form.address,
@@ -238,15 +260,21 @@ export default function RegisterShopPage() {
         pickupAvailable: form.pickupAvailable,
       });
 
+      if (result.application_token) {
+        localStorage.setItem('repairtrack_applicant_token', result.application_token);
+        localStorage.setItem('repairtrack_applicant_email', result.applicant_email || form.email);
+        localStorage.setItem('repairtrack_applicant_app_id', String(result.id));
+      }
+
       setCreatedApp(result);
       setSubmitted(true);
       window.scrollTo({ top: 0, behavior: 'smooth' });
     } catch (err) {
       let msg = 'Failed to submit application. Please try again.';
       if (err.status === 409) {
-        msg = err.message || 'You already have a shop application under review.';
+        msg = err.message || 'An application or account with this email already exists.';
       } else if (err.status === 403) {
-        msg = 'Only customer accounts can submit a shop application.';
+        msg = err.message || 'You do not have permission to submit a shop application.';
       } else if (err.status === 422) {
         msg = err.message || 'Please check that all required fields are filled correctly.';
       } else if (err.message) {
@@ -445,44 +473,103 @@ export default function RegisterShopPage() {
 
       <form onSubmit={handleSubmit} noValidate className="flex flex-col gap-5">
 
-        {/* ─── SECTION A: Owner Information ────────────────── */}
+        {/* ─── SECTION A: Account Information ────────────────── */}
         <Card padding="lg" className="border border-surface-200 dark:border-slate-800 rounded-2xl shadow-card dark:shadow-none">
-          <SectionHeading step="A" title="Owner Information" desc="Authenticated account profile linked to this shop registration" />
+          <SectionHeading
+            step="A"
+            title="Account Information"
+            desc="Create the credentials you will use to log in to your Shop Owner dashboard once approved"
+          />
           <div className="flex flex-col gap-4">
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <Input
-                id="ownerName"
+                id="name"
                 label="Full Name"
-                name="ownerName"
+                name="name"
                 type="text"
-                value={form.ownerName}
-                readOnly
-                disabled
+                placeholder="e.g. Rahul Sharma"
+                value={form.name}
+                onChange={handleChange}
+                error={errors.name}
                 leftIcon={<User size={16} />}
-                hint="From your registered customer profile."
+                required
               />
               <Input
-                id="ownerEmail"
+                id="email"
                 label="Email Address"
-                name="ownerEmail"
+                name="email"
                 type="email"
-                value={form.ownerEmail}
-                readOnly
-                disabled
+                placeholder="owner@example.com"
+                value={form.email}
+                onChange={handleChange}
+                error={errors.email}
                 leftIcon={<Mail size={16} />}
-                hint="Your account login email."
+                hint="This will be your Shop Owner login email."
+                required
+                autoComplete="email"
+              />
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <Input
+                id="password"
+                label="Password"
+                name="password"
+                type={showPassword ? 'text' : 'password'}
+                placeholder="••••••••"
+                value={form.password}
+                onChange={handleChange}
+                error={errors.password}
+                leftIcon={<Lock size={16} />}
+                rightIcon={
+                  <button
+                    type="button"
+                    onClick={() => setShowPassword((v) => !v)}
+                    className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 transition-colors pointer-events-auto p-0.5 focus:outline-none"
+                    aria-label={showPassword ? 'Hide password' : 'Show password'}
+                  >
+                    {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
+                  </button>
+                }
+                hint="Minimum 8 characters."
+                required
+                autoComplete="new-password"
+              />
+
+              <Input
+                id="confirmPassword"
+                label="Confirm Password"
+                name="confirmPassword"
+                type={showConfirmPassword ? 'text' : 'password'}
+                placeholder="••••••••"
+                value={form.confirmPassword}
+                onChange={handleChange}
+                error={errors.confirmPassword}
+                leftIcon={<Lock size={16} />}
+                rightIcon={
+                  <button
+                    type="button"
+                    onClick={() => setShowConfirmPassword((v) => !v)}
+                    className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 transition-colors pointer-events-auto p-0.5 focus:outline-none"
+                    aria-label={showConfirmPassword ? 'Hide confirm password' : 'Show confirm password'}
+                  >
+                    {showConfirmPassword ? <EyeOff size={16} /> : <Eye size={16} />}
+                  </button>
+                }
+                required
+                autoComplete="new-password"
               />
             </div>
 
             <Input
-              id="ownerPhone"
+              id="phone"
               label="Contact Phone Number"
-              name="ownerPhone"
+              name="phone"
               type="tel"
               placeholder="+91 98XXX XXXXX"
-              value={form.ownerPhone}
+              value={form.phone}
               onChange={handleChange}
-              error={errors.ownerPhone}
+              error={errors.phone}
               leftIcon={<Phone size={16} />}
               hint="Primary contact number for administrative verification and customer inquiries."
             />
@@ -490,7 +577,7 @@ export default function RegisterShopPage() {
             <div className="flex items-center gap-2 bg-surface-50 dark:bg-slate-800/40 border border-surface-200 dark:border-slate-700/60 rounded-xl p-3 text-xs text-slate-500 dark:text-slate-400">
               <Info size={15} className="text-primary-600 dark:text-primary-400 shrink-0" />
               <span>
-                Logged in as <strong className="text-slate-700 dark:text-slate-200">{user?.name}</strong> ({user?.email}). Upon admin approval, this account will automatically become a <strong>Shop Owner</strong>.
+                No customer account is required. Upon admin approval, this account will automatically become an active <strong>Shop Owner</strong>.
               </span>
             </div>
           </div>

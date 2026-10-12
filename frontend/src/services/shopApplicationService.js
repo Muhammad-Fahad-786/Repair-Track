@@ -6,9 +6,13 @@
 import api from '../api/axios';
 
 /**
- * Submit a new shop registration application (CUSTOMER only).
+ * Submit a new shop registration application (Unauthenticated prospective shop owner or customer).
  *
  * @param {object} data
+ * @param {string} [data.name] - Applicant full name
+ * @param {string} [data.email] - Applicant login email
+ * @param {string} [data.password] - Applicant login password
+ * @param {string} [data.phone] - Applicant contact phone
  * @param {string} data.shopName - Required shop name
  * @param {string} [data.description] - Shop description
  * @param {string} [data.address] - Street address
@@ -23,6 +27,10 @@ export async function submitShopApplication(data) {
     : (data.services || null);
 
   const payload = {
+    name: (data.name || data.ownerName || '').trim() || undefined,
+    email: (data.email || data.ownerEmail || '').trim().toLowerCase() || undefined,
+    password: data.password || undefined,
+    phone: (data.phone || data.ownerPhone || '').trim() || undefined,
     shop_name: (data.shopName || data.shop_name || '').trim(),
     description: (data.description || '').trim() || null,
     address: (data.address || '').trim() || null,
@@ -32,6 +40,34 @@ export async function submitShopApplication(data) {
   };
 
   const response = await api.post('/shop-applications/', payload);
+  return response.data;
+}
+
+/**
+ * Fetch application status by tracking token.
+ *
+ * @param {string} token - Signed application token
+ * @returns {Promise<object>} ShopApplicationResponse
+ */
+export async function getShopApplicationStatus(token) {
+  if (!token) throw new Error('Application token is required');
+  const response = await api.get('/shop-applications/status', {
+    params: { token },
+  });
+  return response.data;
+}
+
+/**
+ * Fetch application status by email and password credentials.
+ *
+ * @param {{ email: string, password: string }} credentials
+ * @returns {Promise<object>} ShopApplicationResponse
+ */
+export async function checkShopApplicationStatus({ email, password }) {
+  const response = await api.post('/shop-applications/status-check', {
+    email: email.trim().toLowerCase(),
+    password,
+  });
   return response.data;
 }
 
@@ -99,6 +135,8 @@ export async function rejectShopApplication(applicationId, rejectionReason) {
 
 export default {
   submitShopApplication,
+  getShopApplicationStatus,
+  checkShopApplicationStatus,
   getMyShopApplications,
   getAdminShopApplications,
   approveShopApplication,

@@ -93,7 +93,7 @@ export default function Footer() {
               </span>
               <span className="flex items-center gap-2">
                 <Mail size={14} className="text-slate-500 shrink-0" />
-                support@repairtrack.pk
+                support@repairtrack.com
               </span>
             </div>
           </div>

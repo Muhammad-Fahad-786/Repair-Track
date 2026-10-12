@@ -137,13 +137,13 @@ export function isValidPassword(password) {
 // ─── Currency Formatting ──────────────────────────────────────
 /**
  * Format a number as currency string.
- * e.g. 1500 → "$1,500.00"
+ * e.g. 2500 → "₹2,500"
  */
-export function formatCurrency(amount, currency = 'USD') {
+export function formatCurrency(amount, currency = 'INR') {
   if (amount === null || amount === undefined) return '—';
-  return new Intl.NumberFormat('en-US', {
+  return new Intl.NumberFormat('en-IN', {
     style:    'currency',
     currency,
-    minimumFractionDigits: 2,
+    maximumFractionDigits: 0,
   }).format(amount);
 }

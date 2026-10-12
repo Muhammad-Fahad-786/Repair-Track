@@ -199,14 +199,60 @@ export async function getAdminPickups(params = {}) {
 }
 
 /**
- * Fetch all approved & active repair shops (Public/Admin view).
+ * Fetch all registered repair shops with summary metrics and owner data (ADMIN only).
  *
  * @param {object} [params]
  * @returns {Promise<Array<object>>}
  */
 export async function getAdminShops(params = {}) {
-  const response = await api.get('/shops', { params });
+  const response = await api.get('/admin/shops', { params });
   return Array.isArray(response.data) ? response.data : [];
+}
+
+/**
+ * Fetch detailed shop overview including owner info and summary metrics (ADMIN only).
+ *
+ * @param {number|string} shopId
+ * @returns {Promise<object>}
+ */
+export async function getAdminShopOverview(shopId) {
+  const response = await api.get(`/admin/shops/${shopId}`);
+  return response.data;
+}
+
+/**
+ * Fetch customers associated with a specific shop (ADMIN only).
+ *
+ * @param {number|string} shopId
+ * @returns {Promise<Array<object>>}
+ */
+export async function getAdminShopCustomers(shopId) {
+  const response = await api.get(`/admin/shops/${shopId}/customers`);
+  return Array.isArray(response.data) ? response.data : [];
+}
+
+/**
+ * Fetch pickup requests belonging to a specific shop (ADMIN only).
+ *
+ * @param {number|string} shopId
+ * @returns {Promise<Array<object>>}
+ */
+export async function getAdminShopPickups(shopId) {
+  const response = await api.get(`/admin/shops/${shopId}/pickups`);
+  const list = Array.isArray(response.data) ? response.data : [];
+  return list.map(adaptAdminPickup);
+}
+
+/**
+ * Fetch repairs belonging to a specific shop (ADMIN only).
+ *
+ * @param {number|string} shopId
+ * @returns {Promise<Array<object>>}
+ */
+export async function getAdminShopRepairs(shopId) {
+  const response = await api.get(`/admin/shops/${shopId}/repairs`);
+  const list = Array.isArray(response.data) ? response.data : [];
+  return list.map(adaptAdminRepair);
 }
 
 /**

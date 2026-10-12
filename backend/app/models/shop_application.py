@@ -18,14 +18,22 @@ class ShopApplication(Base):
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
 
-    # The customer who submitted the application
-    applicant_id: Mapped[int] = mapped_column(
-        Integer, ForeignKey("users.id"), nullable=False, index=True
+    # The customer/applicant who submitted the application (nullable until approved for independent applicants)
+    applicant_id: Mapped[int | None] = mapped_column(
+        Integer, ForeignKey("users.id"), nullable=True, index=True
     )
     # The shop created upon approval (null until approved)
     shop_id: Mapped[int | None] = mapped_column(
         Integer, ForeignKey("shops.id"), nullable=True, index=True
     )
+
+    # -----------------------------------------------------------------------
+    # Applicant account information captured at registration time
+    # -----------------------------------------------------------------------
+    applicant_name: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    applicant_email: Mapped[str | None] = mapped_column(String(255), nullable=True, index=True)
+    applicant_phone: Mapped[str | None] = mapped_column(String(20), nullable=True)
+    password_hash: Mapped[str | None] = mapped_column(String(255), nullable=True)
 
     # -----------------------------------------------------------------------
     # Shop information captured at application time
@@ -56,7 +64,7 @@ class ShopApplication(Base):
     )
 
     # Relationships
-    applicant: Mapped["User"] = relationship(  # type: ignore[name-defined]
+    applicant: Mapped["User | None"] = relationship(  # type: ignore[name-defined]
         "User", back_populates="shop_applications", foreign_keys=[applicant_id]
     )
     shop: Mapped["Shop | None"] = relationship(  # type: ignore[name-defined]
